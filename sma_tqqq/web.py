@@ -147,7 +147,7 @@ JSON.parse(document.getElementById("chart-prefixes").textContent).forEach(initCh
 var ex = document.getElementById("explain");
 if (ex){
   try {
-    if (localStorage.getItem("smaExplain") === "0") ex.open = false;
+    if (localStorage.getItem("smaExplain") === "1") ex.open = true;
     ex.addEventListener("toggle", function(){
       localStorage.setItem("smaExplain", ex.open ? "1" : "0");
     });
@@ -159,8 +159,8 @@ if (ex){
 """)
 
 EXPLAIN = (
-    '<details class="explain" id="explain" open>'
-    "<summary>First time here? What TQQQ is and how the two strategies work</summary>"
+    '<details class="explain" id="explain">'
+    "<summary>How it works: TQQQ and the two signals, in plain words</summary>"
     "<p><b>What TQQQ is.</b> TQQQ is a fund that moves 3 times as much as the Nasdaq-100 index, every day, "
     "in both directions. When the index gains 1% in a day, TQQQ gains about 3%; when the index drops 2%, TQQQ drops "
     "about 6%. Over a long rising market that compounding is spectacular, but in a crash it is lethal: TQQQ lost "

@@ -1,0 +1,13 @@
+[Unit]
+Description=SMA-TQQQ local dashboard
+
+[Service]
+Type=simple
+WorkingDirectory=__PROJECT_DIR__
+ExecStart=__PYTHON__ -m sma_tqqq
+Restart=on-failure
+RestartSec=10
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=default.target

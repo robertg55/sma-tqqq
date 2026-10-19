@@ -1,0 +1,19 @@
+[project]
+name = "sma-tqqq"
+version = "0.1.0"
+description = "Local web dashboard for a 200 day moving average long/flat signal on TQQQ"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "robertg55" }]
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+sma-tqqq = "sma_tqqq.server:main"
+
+[tool.poetry]
+packages = [{ include = "sma_tqqq" }]
+
+[build-system]
+requires = ["poetry-core>=2.0.0"]
+build-backend = "poetry.core.masonry.api"

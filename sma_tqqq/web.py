@@ -26,6 +26,9 @@ body{margin:0;background:var(--page);color:var(--ink);
 .wrap{max-width:980px;margin:0 auto}
 header{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;margin-bottom:14px}
 h1{font-size:20px;margin:0}
+h2{font-size:16px;margin:22px 0 8px}
+.secnote{color:var(--ink2);font-size:13px;line-height:1.55;margin:0 0 10px}
+.note{color:var(--muted);font-size:12px;line-height:1.5;margin:10px 0 0}
 .meta{color:var(--ink2);font-size:12px}
 .meta a{color:var(--ink2)}
 .verdict{display:flex;align-items:center;gap:14px;background:var(--surface);
@@ -57,8 +60,12 @@ h1{font-size:20px;margin:0}
 details{background:var(--surface);border:1px solid var(--border);border-radius:10px;
   padding:10px 16px;margin-bottom:12px;color:var(--ink2)}
 summary{cursor:pointer;font-size:13px}
+.explain summary{font-weight:600;color:var(--ink)}
+.explain p{font-size:13px;color:var(--ink2);line-height:1.6;margin:10px 0 2px}
+.explain b{color:var(--ink)}
+.tscroll{overflow-x:auto}
 table{border-collapse:collapse;margin-top:10px;font-variant-numeric:tabular-nums;font-size:13px}
-td,th{padding:4px 12px 4px 0;text-align:right;border-bottom:1px solid var(--grid)}
+td,th{padding:4px 12px 4px 0;text-align:right;border-bottom:1px solid var(--grid);white-space:nowrap}
 td:first-child,th:first-child{text-align:left}
 footer{color:var(--muted);font-size:12px;line-height:1.6}
 footer a{color:var(--ink2)}
@@ -73,10 +80,13 @@ footer a{color:var(--ink2)}
 </header>
 $stale_html
 $banners_html
+$explain_html
 <div class="grid">
 $cards_html
 </div>
 $charts_html
+$backtest_html
+$dotcom_html
 <details>
   <summary>Data table, last 15 sessions</summary>
   <table>
@@ -88,7 +98,8 @@ $charts_html
   Signal 1 (SMA200): hold TQQQ while the Nasdaq-100 official close is above the average of its last 200 closes, otherwise cash.
   Signal 2 (5/218): hold TQQQ while its own 5 day average is above its 218 day average, otherwise cash.
   Decisions use official closes only; the live quote is informational.
-  Data comes from Nasdaq's public API and is cached locally in data/ (never committed).
+  The backtest and the crash replay are simulations under the assumptions stated next to them.
+  Data comes from Nasdaq's public API (and FRED for the 2000 era) and is cached locally in data/ (never committed).
   Page auto refreshes every 5 minutes. Mechanical indicators, not financial advice.
 </footer>
 </div>
@@ -133,10 +144,50 @@ function initChart(p){
   svg.addEventListener("pointerleave", hide);
 }
 JSON.parse(document.getElementById("chart-prefixes").textContent).forEach(initChart);
+var ex = document.getElementById("explain");
+if (ex){
+  try {
+    if (localStorage.getItem("smaExplain") === "0") ex.open = false;
+    ex.addEventListener("toggle", function(){
+      localStorage.setItem("smaExplain", ex.open ? "1" : "0");
+    });
+  } catch (err) {}
+}
 </script>
 </body>
 </html>
 """)
+
+EXPLAIN = (
+    '<details class="explain" id="explain" open>'
+    "<summary>First time here? What TQQQ is and how the two strategies work</summary>"
+    "<p><b>What TQQQ is.</b> TQQQ is a fund that moves 3 times as much as the Nasdaq-100 index, every day, "
+    "in both directions. When the index gains 1% in a day, TQQQ gains about 3%; when the index drops 2%, TQQQ drops "
+    "about 6%. Over a long rising market that compounding is spectacular, but in a crash it is lethal: TQQQ lost "
+    "about 80% in 2022, and in a repeat of the 2000 crash it loses over 99%. The whole game is to own it while the "
+    "market is healthy and to not own it during disasters.</p>"
+    "<p><b>Signal 1: the index 200 day line.</b> Average the Nasdaq-100's last 200 official closing prices. "
+    "That average is a slow line that tracks the long term trend. The rule: be in TQQQ while the index closes above "
+    "its line, and sit in cash while it closes below; the day it crosses, you trade. Why it works: average returns "
+    "are about the same on both sides of the line, but the violence is not. Volatility below the line runs roughly "
+    "twice as high, and nearly all of the catastrophic days happen down there. A daily 3x fund is destroyed by "
+    "exactly that chaos, so skipping it matters more than catching every rebound day.</p>"
+    "<p><b>Signal 2: the TQQQ 5/218 crossover.</b> The same idea, measured on TQQQ itself. Average its last 5 "
+    "closes (a fast line) and its last 218 closes (a slow line); be in TQQQ while the fast line is above the slow "
+    "one, otherwise cash. Using a 5 day average instead of a single close filters out one day head fakes, so this "
+    "signal trades less often, at the price of reacting a few days later at real turning points.</p>"
+    "<p><b>How to use the page.</b> Check the two banners once a day after the market close. Green means that "
+    "strategy says be invested; red means it says be in cash. There is no prediction involved, each rule only "
+    "reacts to its own moving averages. The receipts are below: a backtest over the last ten years of real prices, "
+    "and a replay of the 2000 dot-com crash starting tomorrow. Mechanical rules, not financial advice.</p>"
+    "</details>"
+)
+
+STRATS = (
+    ("Buy and hold TQQQ", "--s1", "hold"),
+    ("Signal 1: index SMA200", "--s2", "sig1"),
+    ("Signal 2: TQQQ 5/218", "--s3", "sig2"),
+)
 
 
 def _n(v, dec=2):
@@ -144,7 +195,11 @@ def _n(v, dec=2):
 
 
 def _pct(v, dec=2):
-    return ("%+." + str(dec) + "f") % v + "%"
+    return format(v, "+,.%df" % dec) + "%"
+
+
+def _money(v):
+    return "$" + format(int(round(v)), ",")
 
 
 def _card(k, v, sub=""):
@@ -163,6 +218,104 @@ def _banner(in_market, label, title, sub):
         '<div><div class="title">%s <span style="color:var(--muted);font-weight:400;font-size:13px">(%s)</span></div>'
         '<div class="sub">%s</div></div></div>' % (color, color, icon, title, label, sub)
     )
+
+
+def _chart_block(prefix, title, lines, built, extra=""):
+    legend = "".join(
+        '<span><span class="sw" style="background:var(%s)"></span>%s</span>' % (var, label)
+        for label, var, _ in lines
+    )
+    return (
+        '<div class="chart-card"><p class="chart-title">%s</p>'
+        '<div class="legend">%s</div>'
+        '<div class="chart-wrap">%s<div id="chart-tip-%s" class="tip"></div></div>'
+        '%s<script type="application/json" id="chart-data-%s">%s</script></div>'
+        % (title, legend, built["svg"], prefix, extra, prefix, built["data_json"])
+    )
+
+
+def _bt_table(bt):
+    rows = [
+        "<tr><th>Strategy</th><th>Final wealth</th><th>Total return</th><th>Per year</th>"
+        "<th>Worst drop</th><th>Time invested</th><th>Trades</th></tr>"
+    ]
+    for name, var, key in STRATS:
+        r = bt[key]
+        rows.append(
+            '<tr><td><span class="sw" style="background:var(%s)"></span>%s</td>'
+            "<td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%.0f%%</td><td>%d</td></tr>"
+            % (var, name, _money(r["final"]), _pct(r["total_return_pct"], 0),
+               _pct(r["cagr_pct"], 1), _pct(r["max_drawdown_pct"], 1),
+               r["time_in_market_pct"], r["trades"])
+        )
+    return '<div class="tscroll"><table>%s</table></div>' % "".join(rows)
+
+
+def _dc_table(dc):
+    rows = [
+        "<tr><th>Strategy</th><th>Start (today)</th><th>3 months in</th><th>At the index bottom</th>"
+        "<th>End of replay</th><th>Worst drop</th><th>Trades</th></tr>"
+    ]
+    for name, var, key in STRATS:
+        r = dc[key]
+        rows.append(
+            '<tr><td><span class="sw" style="background:var(%s)"></span>%s</td>'
+            "<td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%d</td></tr>"
+            % (var, name, _money(r["start"]), _money(r["after_3_months"]),
+               _money(r["at_bottom"]), _money(r["final"]),
+               _pct(r["max_drawdown_pct"], 2), r["trades"])
+        )
+    return '<div class="tscroll"><table>%s</table></div>' % "".join(rows)
+
+
+def _backtest_section(bt, prefixes):
+    head = "<h2>Backtest: the last ten years</h2>"
+    if not bt:
+        return ""
+    if not (bt.get("available") and bt.get("chart")):
+        return head + '<div class="stale">The backtest could not run: %s</div>' % html.escape(str(bt.get("error", "unknown")))
+    note = (
+        "One decision per session at the official close, trades fill at that same close. "
+        "Cash earns nothing. Taxes, fees and dividends are ignored. Both signals need a long "
+        "average, so the race starts on the first session where a full 218 day history exists "
+        "inside the fetched decade of data."
+    )
+    secnote = (
+        '<p class="secnote">All three lines invest %s on %s and follow their rule through %s. '
+        "This is how the two banners above would actually have traded, next to simply buying "
+        "and holding TQQQ the whole time.</p>"
+        % (_money(bt["start_cash"]), bt["start"], bt["end"])
+    )
+    ch = bt["chart"]
+    extra = _bt_table(bt) + '<p class="note">%s</p>' % note
+    prefixes.append("bt")
+    title = "Growth of %s, %s to %s (log scale)" % (_money(bt["start_cash"]), bt["start"], bt["end"])
+    return head + secnote + _chart_block("bt", title, ch["lines"], ch["built"], extra)
+
+
+def _dotcom_section(dc, prefixes):
+    head = "<h2>Stress test: a dot-com crash starting tomorrow</h2>"
+    if not dc:
+        return ""
+    if not (dc.get("available") and dc.get("chart")):
+        return head + '<div class="stale">The crash replay could not run: %s</div>' % html.escape(str(dc.get("error", "unknown")))
+    secnote = (
+        '<p class="secnote">The Nasdaq-100 fell %.0f%% from March 2000 to the October 2002 bottom and was '
+        "still %.0f%% down at the end of 2003. That exact day by day path is replayed starting at the next "
+        "session, scaled onto today's prices. Each strategy begins with its final wealth from the backtest "
+        "above, in its current state, and keeps applying its rule as prices and averages evolve.</p>"
+        % (abs(dc["ndx_at_bottom_pct"]), abs(dc["ndx_at_end_pct"]))
+    )
+    note = (
+        "TQQQ is simulated at 3 times each daily index move minus the financing drag of that era's interest "
+        "rates, the same reconstruction that matches the real fund since 2016. Index path %s to %s from FRED. "
+        "Axis dates are hypothetical future sessions."
+        % (dc["replayed_from"], dc["replayed_to"])
+    )
+    ch = dc["chart"]
+    extra = _dc_table(dc) + '<p class="note">%s</p>' % note
+    prefixes.append("dc")
+    return head + secnote + _chart_block("dc", "Wealth through the replayed crash (log scale)", ch["lines"], ch["built"], extra)
 
 
 def render(s, meta):
@@ -252,17 +405,10 @@ def render(s, meta):
     prefixes = []
     for prefix, title, lines, built in s["charts"]:
         prefixes.append(prefix)
-        legend = "".join(
-            '<span><span class="sw" style="background:var(%s)"></span>%s</span>' % (var, label)
-            for label, var, _ in lines
-        )
-        charts_html.append(
-            '<div class="chart-card"><p class="chart-title">%s</p>'
-            '<div class="legend">%s</div>'
-            '<div class="chart-wrap">%s<div id="chart-tip-%s" class="tip"></div></div>'
-            '<script type="application/json" id="chart-data-%s">%s</script></div>'
-            % (title, legend, built["svg"], prefix, prefix, built["data_json"])
-        )
+        charts_html.append(_chart_block(prefix, title, lines, built))
+
+    backtest_html = _backtest_section(s.get("backtest") or {}, prefixes)
+    dotcom_html = _dotcom_section(s.get("dotcom") or {}, prefixes)
 
     t2map = {d: (c, a, b) for d, c, a, b in s["chart2_series"]}
     table_rows = []
@@ -290,8 +436,11 @@ def render(s, meta):
         market=html.escape((live or {}).get("market") or "unknown"),
         stale_html=stale_html,
         banners_html="\n".join(banners),
+        explain_html=EXPLAIN,
         cards_html="\n".join(cards),
         charts_html="\n".join(charts_html),
+        backtest_html=backtest_html,
+        dotcom_html=dotcom_html,
         table_rows="\n".join(table_rows),
         prefixes_json=json.dumps(prefixes),
     )

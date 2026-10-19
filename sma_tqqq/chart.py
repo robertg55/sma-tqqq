@@ -1,6 +1,7 @@
 """Renders multi line SVG charts with hover data."""
 
 import json
+import math
 
 W, H = 920, 300
 PAD_L, PAD_R, PAD_T, PAD_B = 64, 100, 18, 30
@@ -19,26 +20,30 @@ def _axis_label(v, hi):
     return format(v, ",.1f")
 
 
-def build(prefix, dates, lines):
+def build(prefix, dates, lines, log=False):
     """lines is a list of (label, css var, values), each aligned with dates."""
     n = len(dates)
+    tr = math.log10 if log else (lambda v: v)
     lo = min(min(vals) for _, _, vals in lines)
     hi = max(max(vals) for _, _, vals in lines)
-    span = (hi - lo) or 1.0
-    lo -= span * 0.05
-    hi += span * 0.05
+    tlo = tr(lo)
+    thi = tr(hi)
+    span = (thi - tlo) or 1.0
+    tlo -= span * 0.05
+    thi += span * 0.05
 
     def x_at(i):
         return PAD_L + (W - PAD_L - PAD_R) * (i / (n - 1))
 
     def y_at(v):
-        return PAD_T + (H - PAD_T - PAD_B) * (1 - (v - lo) / (hi - lo))
+        return PAD_T + (H - PAD_T - PAD_B) * (1 - (tr(v) - tlo) / (thi - tlo))
 
     xs = [round(x_at(i), 2) for i in range(n)]
     parts = []
     for k in range(5):
-        v = lo + (hi - lo) * k / 4
-        y = y_at(v)
+        tv = tlo + (thi - tlo) * k / 4
+        v = 10 ** tv if log else tv
+        y = PAD_T + (H - PAD_T - PAD_B) * (1 - (tv - tlo) / (thi - tlo))
         parts.append('<line x1="%d" x2="%d" y1="%.1f" y2="%.1f" stroke="var(--grid)" stroke-width="1"/>' % (PAD_L, W - PAD_R, y, y))
         parts.append('<text x="%d" y="%.1f" text-anchor="end" class="axis">%s</text>' % (PAD_L - 8, y + 4, _axis_label(v, hi)))
     for frac, i in ((0.0, 0), (0.5, n // 2), (1.0, n - 1)):

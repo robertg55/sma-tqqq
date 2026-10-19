@@ -14,6 +14,15 @@ Decisions use official closes only; the live quote on the page is informational.
 
 This is a mechanical indicator, not financial advice.
 
+## Built in backtests
+
+The page carries its own receipts, recomputed from freshly fetched data:
+
+- Ten year backtest: both signals and plain buy and hold start with $10,000 on the first session that has a full 218 day warmup, then trade their rules at official closes through today. Shown as a log scale wealth chart plus final wealth, yearly growth, worst drop, time invested and trade counts.
+- Dot-com stress test: the Nasdaq-100's real daily path from its March 2000 peak through the end of 2003 (83% down at the bottom) is replayed as if it started tomorrow, scaled onto today's prices, with TQQQ simulated at 3 times the daily index move minus the financing costs of that era. Each strategy enters the crash with its wealth and state from the ten year backtest.
+
+The 2000 era index and fed funds series come from FRED and are cached in data/ like everything else. The top of the page also has a plain words explainer of TQQQ and both strategies for first time visitors.
+
 ## Quick start
 
 Requires Python 3.10+ and nothing else.
@@ -59,7 +68,7 @@ There are no secrets in this project; the .env exists so ports and hosts never n
 
 ## How data is handled
 
-Fetched history and quotes are cached as JSON under `data/`, which is gitignored along with `.env`; nothing fetched is ever committed. If a fetch fails, the page serves the cached data and shows a warning banner with the age of the last good fetch.
+Fetched history and quotes are cached as JSON under `data/`, which is gitignored along with `.env`; nothing fetched is ever committed. The decade of history used by the backtest refreshes daily, and the fixed 2000 era series from FRED is fetched once and kept. If a fetch fails, the page serves the cached data and shows a warning banner with the age of the last good fetch.
 
 ## Project layout
 

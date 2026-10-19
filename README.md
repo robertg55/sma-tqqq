@@ -19,7 +19,7 @@ This is a mechanical indicator, not financial advice.
 The page carries its own receipts, recomputed from freshly fetched data:
 
 - Ten year backtest: both signals and plain buy and hold start with $10,000 on the first session that has a full 218 day warmup, then trade their rules at official closes through today. Shown as a log scale wealth chart plus final wealth, yearly growth, worst drop, time invested and trade counts.
-- Dot-com stress test: the Nasdaq-100's real daily path from its March 2000 peak through the end of 2003 (83% down at the bottom) is replayed as if it started tomorrow, scaled onto today's prices, with TQQQ simulated at 3 times the daily index move minus the financing costs of that era. Each strategy enters the crash with its wealth and state from the ten year backtest.
+- Dot-com stress test: the Nasdaq-100's real daily path from its March 2000 peak through the end of 2003 (83% down at the bottom) is replayed as if it started tomorrow, each percentage move applied to today's prices, with TQQQ simulated at 3 times the daily index move minus the financing costs of that era. Each strategy enters the crash with its wealth and state from the ten year backtest. Two trigger charts continue the last year of real prices into the replay, with the averages still updating over the real history behind them, so the page shows the exact day each signal's average crosses and the sell happens.
 
 The 2000 era index and fed funds series come from FRED and are cached in data/ like everything else. The top of the page also has a plain words explainer of TQQQ and both strategies for first time visitors.
 

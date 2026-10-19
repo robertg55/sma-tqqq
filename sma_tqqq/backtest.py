@@ -10,6 +10,8 @@ DOTCOM_PEAK = "2000-03-27"
 DOTCOM_END = "2003-12-31"
 TQQQ_SPREAD = 0.0060
 CHART_POINTS = 520
+DC_REAL = 250
+DC_FWD = 250
 
 
 def _align(ndx_rows, tqqq_rows):
@@ -138,6 +140,42 @@ def dotcom(ndx_rows, tqqq_rows, fred_ndx, fred_ff, wealth):
     bot = npath.index(min(npath))
     m3 = min(63, len(fdates) - 1)
 
+    def first_sell(pos):
+        for k in range(1, len(pos)):
+            if pos[k - 1] and not pos[k]:
+                return k
+        return None
+
+    k1 = first_sell(sig1)
+    k2 = first_sell(sig2)
+    sig1_exit = None
+    if k1 is not None:
+        sig1_exit = {"session": k1, "date": fdates[k1],
+                     "ndx_drop_pct": (npath[k1] / npath[0] - 1) * 100}
+    sig2_exit = None
+    if k2 is not None:
+        sig2_exit = {"session": k2, "date": fdates[k2],
+                     "tqqq_drop_pct": (t[k2] / t[0] - 1) * 100}
+
+    full_dates = dates + fdates[1:]
+    w0 = len(dates) - DC_REAL
+    w1 = min(len(ndx_ext), len(dates) + DC_FWD)
+    win = range(w0, w1)
+    price_series = {
+        "boundary": DC_REAL - 1,
+        "ndx": {
+            "dates": [full_dates[i] for i in win],
+            "close": [round(ndx_ext[i], 2) for i in win],
+            "sma200": [round(sma200[i], 2) for i in win],
+        },
+        "tqqq": {
+            "dates": [full_dates[i] for i in win],
+            "close": [round(tq_ext[i], 2) for i in win],
+            "sma5": [round(s5[i], 2) for i in win],
+            "sma218": [round(s218[i], 2) for i in win],
+        },
+    }
+
     def snap(eq, pos):
         return {
             "start": eq[0],
@@ -157,8 +195,11 @@ def dotcom(ndx_rows, tqqq_rows, fred_ndx, fred_ff, wealth):
         "bottom_session": bot,
         "ndx_at_bottom_pct": (min(npath) / npath[0] - 1) * 100,
         "ndx_at_end_pct": (npath[-1] / npath[0] - 1) * 100,
+        "sig1_exit": sig1_exit,
+        "sig2_exit": sig2_exit,
         "hold": snap(eq_h, hold),
         "sig1": snap(eq_1, sig1),
         "sig2": snap(eq_2, sig2),
         "series": _thin(fdates, {"hold": eq_h, "sig1": eq_1, "sig2": eq_2}),
+        "price_series": price_series,
     }

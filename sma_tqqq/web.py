@@ -252,16 +252,19 @@ def _bt_table(bt):
 
 
 def _dc_table(dc):
+    exits = {"hold": None, "sig1": dc.get("sig1_exit"), "sig2": dc.get("sig2_exit")}
     rows = [
-        "<tr><th>Strategy</th><th>Start (today)</th><th>3 months in</th><th>At the index bottom</th>"
-        "<th>End of replay</th><th>Worst drop</th><th>Trades</th></tr>"
+        "<tr><th>Strategy</th><th>Start (today)</th><th>First sell</th><th>3 months in</th>"
+        "<th>At the index bottom</th><th>End of replay</th><th>Worst drop</th><th>Trades</th></tr>"
     ]
     for name, var, key in STRATS:
         r = dc[key]
+        e = exits[key]
+        first = "day %d" % e["session"] if e else "never"
         rows.append(
             '<tr><td><span class="sw" style="background:var(%s)"></span>%s</td>'
-            "<td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%d</td></tr>"
-            % (var, name, _money(r["start"]), _money(r["after_3_months"]),
+            "<td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%d</td></tr>"
+            % (var, name, _money(r["start"]), first, _money(r["after_3_months"]),
                _money(r["at_bottom"]), _money(r["final"]),
                _pct(r["max_drawdown_pct"], 2), r["trades"])
         )
@@ -299,23 +302,50 @@ def _dotcom_section(dc, prefixes):
         return ""
     if not (dc.get("available") and dc.get("chart")):
         return head + '<div class="stale">The crash replay could not run: %s</div>' % html.escape(str(dc.get("error", "unknown")))
+    e1 = dc.get("sig1_exit")
+    e2 = dc.get("sig2_exit")
+    timing = ""
+    if e1 and e2:
+        timing = (
+            " Starting from today's actual gaps, signal 1 sells %d sessions in, on %s, with the index %s "
+            "from today; signal 2 sells %d sessions in, on %s, with TQQQ %s from today."
+            % (e1["session"], e1["date"], _pct(e1["ndx_drop_pct"], 1),
+               e2["session"], e2["date"], _pct(e2["tqqq_drop_pct"], 1))
+        )
     secnote = (
         '<p class="secnote">The Nasdaq-100 fell %.0f%% from March 2000 to the October 2002 bottom and was '
         "still %.0f%% down at the end of 2003. That exact day by day path is replayed starting at the next "
-        "session, scaled onto today's prices. Each strategy begins with its final wealth from the backtest "
-        "above, in its current state, and keeps applying its rule as prices and averages evolve.</p>"
-        % (abs(dc["ndx_at_bottom_pct"]), abs(dc["ndx_at_end_pct"]))
+        "session, each percentage move applied to today's prices, while the averages keep updating over the "
+        "real history behind them. The first two charts continue the last year of real prices into the replay "
+        "so you can see exactly when each average crosses and the sell happens.%s</p>"
+        % (abs(dc["ndx_at_bottom_pct"]), abs(dc["ndx_at_end_pct"]), timing)
     )
+    out = head + secnote
+    ch_n = dc.get("chart_ndx")
+    if ch_n:
+        prefixes.append("dcn")
+        t1 = "Signal 1 trigger: NDX vs 200 day average, last year plus the replay"
+        if e1:
+            t1 += " (sells day %d)" % e1["session"]
+        out += _chart_block("dcn", t1, ch_n["lines"], ch_n["built"])
+    ch_t = dc.get("chart_tq")
+    if ch_t:
+        prefixes.append("dct")
+        t2 = "Signal 2 trigger: TQQQ vs 5 and 218 day averages, last year plus the replay"
+        if e2:
+            t2 += " (sells day %d)" % e2["session"]
+        out += _chart_block("dct", t2, ch_t["lines"], ch_t["built"])
     note = (
         "TQQQ is simulated at 3 times each daily index move minus the financing drag of that era's interest "
         "rates, the same reconstruction that matches the real fund since 2016. Index path %s to %s from FRED. "
-        "Axis dates are hypothetical future sessions."
+        "Axis dates are hypothetical future sessions. Each strategy begins the replay with its final wealth "
+        "from the backtest above, in its current state."
         % (dc["replayed_from"], dc["replayed_to"])
     )
     ch = dc["chart"]
     extra = _dc_table(dc) + '<p class="note">%s</p>' % note
     prefixes.append("dc")
-    return head + secnote + _chart_block("dc", "Wealth through the replayed crash (log scale)", ch["lines"], ch["built"], extra)
+    return out + _chart_block("dc", "Wealth through the full replay (log scale)", ch["lines"], ch["built"], extra)
 
 
 def render(s, meta):

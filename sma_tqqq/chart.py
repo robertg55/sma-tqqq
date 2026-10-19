@@ -20,7 +20,7 @@ def _axis_label(v, hi):
     return format(v, ",.1f")
 
 
-def build(prefix, dates, lines, log=False):
+def build(prefix, dates, lines, log=False, mark=None):
     """lines is a list of (label, css var, values), each aligned with dates."""
     n = len(dates)
     tr = math.log10 if log else (lambda v: v)
@@ -31,6 +31,8 @@ def build(prefix, dates, lines, log=False):
     span = (thi - tlo) or 1.0
     tlo -= span * 0.05
     thi += span * 0.05
+    if not log and lo >= 0:
+        tlo = max(tlo, 0.0)
 
     def x_at(i):
         return PAD_L + (W - PAD_L - PAD_R) * (i / (n - 1))
@@ -50,6 +52,11 @@ def build(prefix, dates, lines, log=False):
         anchor = "start" if frac == 0.0 else ("middle" if frac == 0.5 else "end")
         parts.append('<text x="%.1f" y="%d" text-anchor="%s" class="axis">%s</text>' % (xs[i], H - 8, anchor, dates[i]))
     parts.append('<line x1="%d" x2="%d" y1="%.1f" y2="%.1f" stroke="var(--axis)" stroke-width="1"/>' % (PAD_L, W - PAD_R, H - PAD_B, H - PAD_B))
+
+    if mark:
+        mi, mlabel = mark
+        parts.append('<line x1="%.1f" x2="%.1f" y1="%d" y2="%d" stroke="var(--ink2)" stroke-width="1" stroke-dasharray="5 4"/>' % (xs[mi], xs[mi], PAD_T, H - PAD_B))
+        parts.append('<text x="%.1f" y="%d" text-anchor="middle" class="axis">%s</text>' % (xs[mi], PAD_T - 5, mlabel))
 
     meta = []
     for label, var, vals in lines:

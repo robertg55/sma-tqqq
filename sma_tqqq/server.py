@@ -117,7 +117,8 @@ class Handler(BaseHTTPRequestHandler):
                 out = {k: v for k, v in s.items() if k not in ("chart_series", "chart2_series", "charts")}
                 for k in ("backtest", "dotcom"):
                     if isinstance(out.get(k), dict):
-                        out[k] = {kk: vv for kk, vv in out[k].items() if kk not in ("series", "chart")}
+                        out[k] = {kk: vv for kk, vv in out[k].items()
+                                  if kk not in ("series", "chart", "price_series", "chart_ndx", "chart_tq")}
                 out["meta"] = meta
                 self._send(200, json.dumps(out, indent=2), "application/json")
             elif url.path == "/":
@@ -152,6 +153,27 @@ class Handler(BaseHTTPRequestHandler):
                             "lines": lines,
                             "built": chart.build(prefix, ser["dates"], lines, log=True),
                         }
+                dc = s.get("dotcom") or {}
+                if dc.get("available") and dc.get("price_series"):
+                    ps = dc["price_series"]
+                    mark = (ps["boundary"], "today")
+                    nlines = [
+                        ("NDX close", "--s1", ps["ndx"]["close"]),
+                        ("SMA200", "--s2", ps["ndx"]["sma200"]),
+                    ]
+                    dc["chart_ndx"] = {
+                        "lines": nlines,
+                        "built": chart.build("dcn", ps["ndx"]["dates"], nlines, mark=mark),
+                    }
+                    tlines = [
+                        ("TQQQ", "--s1", ps["tqqq"]["close"]),
+                        ("SMA5", "--s2", ps["tqqq"]["sma5"]),
+                        ("SMA218", "--s3", ps["tqqq"]["sma218"]),
+                    ]
+                    dc["chart_tq"] = {
+                        "lines": tlines,
+                        "built": chart.build("dct", ps["tqqq"]["dates"], tlines, mark=mark),
+                    }
                 self._send(200, web.render(s, meta), "text/html; charset=utf-8")
             else:
                 self._send(404, "not found", "text/plain; charset=utf-8")

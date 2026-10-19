@@ -85,6 +85,34 @@ def compute(ndx_rows, tqqq_rows, ndx_quote, tqqq_quote):
         "above_brake": t_last > brake_level,
     }
 
+    t_dates = [r["date"] for r in tqqq_rows]
+    s5 = rolling_sma(t_closes, 5)
+    s218 = rolling_sma(t_closes, 218)
+    t_states = [(i, s5[i] > s218[i]) for i in range(len(t_closes)) if s218[i] is not None]
+    x_1y = 0
+    for k in range(max(1, len(t_states) - YEAR_SESSIONS), len(t_states)):
+        if t_states[k][1] != t_states[k - 1][1]:
+            x_1y += 1
+    in5218 = t_states[-1][1]
+    days5218 = 1
+    since5218 = t_dates[t_states[-1][0]]
+    for k in range(len(t_states) - 2, -1, -1):
+        if t_states[k][1] != in5218:
+            break
+        days5218 += 1
+        since5218 = t_dates[t_states[k][0]]
+    tqqq_5218 = {
+        "signal": "TQQQ" if in5218 else "CASH",
+        "sma5": s5[-1],
+        "sma218": s218[-1],
+        "gap_pct": (s5[-1] / s218[-1] - 1) * 100,
+        "crossings_1y": x_1y,
+        "days_in_state": days5218,
+        "state_since": since5218,
+    }
+    first2 = max(217, len(t_closes) - CHART_SESSIONS)
+    chart2 = [(t_dates[i], t_closes[i], s5[i], s218[i]) for i in range(first2, len(t_closes))]
+
     first_chart = max(SMA_LEN - 1, len(closes) - CHART_SESSIONS)
     chart_series = [(dates[i], closes[i], smas[i]) for i in range(first_chart, len(closes))]
 
@@ -105,5 +133,7 @@ def compute(ndx_rows, tqqq_rows, ndx_quote, tqqq_quote):
         },
         "live": live,
         "tqqq": tqqq,
+        "tqqq_5218": tqqq_5218,
         "chart_series": chart_series,
+        "chart2_series": chart2,
     }

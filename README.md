@@ -2,9 +2,15 @@
 
 A tiny local web dashboard for a 200 day moving average long/flat signal on TQQQ. It runs on your own machine, fetches fresh data from Nasdaq's public API whenever you open the page, and tells you plainly: in market (hold or buy TQQQ) or out (sell, sit in cash). No accounts, no API keys, no database, no third party services beyond the public quote API, and zero Python dependencies.
 
-## The rule it implements
+## The rules it implements
 
-Hold TQQQ while the Nasdaq-100 official daily close is above the average of its last 200 official closes. When it closes below, sell everything to cash. When it closes back above, buy back in. Decisions use official closes only; the live quote on the page is informational. The page also shows a secondary "crash brake" level (40 percent below TQQQ's 1 year peak) that deep drawdown backtests favored, the exact index level that would flip the signal at the next close, crossing counts, and current volatility versus the regimes that make the filter work.
+Two independent long/flat signals are shown side by side, each with its own verdict banner and chart.
+
+Signal 1 (index SMA200): hold TQQQ while the Nasdaq-100 official daily close is above the average of its last 200 official closes. When it closes below, sell everything to cash. When it closes back above, buy back in.
+
+Signal 2 (TQQQ 5/218): hold TQQQ while its own 5 day average close is above its 218 day average, otherwise cash. The smoothed short side trades less often, and computing both lines on the leveraged fund itself makes exits more aggressive in bad regimes.
+
+Decisions use official closes only; the live quote on the page is informational. The page also shows a secondary "crash brake" level (40 percent below TQQQ's 1 year peak) that deep drawdown backtests favored, the exact index level that would flip signal 1 at the next close, crossing counts, and current volatility versus the regimes that make trend filters work.
 
 This is a mechanical indicator, not financial advice.
 

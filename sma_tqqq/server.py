@@ -72,12 +72,28 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(200, "ok", "text/plain; charset=utf-8")
             elif url.path == "/api/status":
                 s, meta = gather(force)
-                out = {k: v for k, v in s.items() if k != "chart_series"}
+                out = {k: v for k, v in s.items() if k not in ("chart_series", "chart2_series")}
                 out["meta"] = meta
                 self._send(200, json.dumps(out, indent=2), "application/json")
             elif url.path == "/":
                 s, meta = gather(force)
-                s["chart_html"] = chart.build(s["chart_series"])
+                dates1 = [d for d, _, _ in s["chart_series"]]
+                lines1 = [
+                    ("NDX close", "--s1", [c for _, c, _ in s["chart_series"]]),
+                    ("SMA200", "--s2", [m for _, _, m in s["chart_series"]]),
+                ]
+                dates2 = [d for d, _, _, _ in s["chart2_series"]]
+                lines2 = [
+                    ("TQQQ", "--s1", [c for _, c, _, _ in s["chart2_series"]]),
+                    ("SMA5", "--s2", [a for _, _, a, _ in s["chart2_series"]]),
+                    ("SMA218", "--s3", [b for _, _, _, b in s["chart2_series"]]),
+                ]
+                s["charts"] = [
+                    ("ndx", "Signal 1: Nasdaq-100 close vs 200 day average, last %d sessions" % len(dates1),
+                     lines1, chart.build("ndx", dates1, lines1)),
+                    ("tq", "Signal 2: TQQQ close vs 5 and 218 day averages, last %d sessions" % len(dates2),
+                     lines2, chart.build("tq", dates2, lines2)),
+                ]
                 self._send(200, web.render(s, meta), "text/html; charset=utf-8")
             else:
                 self._send(404, "not found", "text/plain; charset=utf-8")

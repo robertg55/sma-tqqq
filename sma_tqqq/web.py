@@ -304,42 +304,51 @@ def _dotcom_section(dc, prefixes):
         return head + '<div class="stale">The crash replay could not run: %s</div>' % html.escape(str(dc.get("error", "unknown")))
     e1 = dc.get("sig1_exit")
     e2 = dc.get("sig2_exit")
+    alt = dc.get("today_gap_exits") or {}
     timing = ""
     if e1 and e2:
         timing = (
-            " Starting from today's actual gaps, signal 1 sells %d sessions in, on %s, with the index %s "
-            "from today; signal 2 sells %d sessions in, on %s, with TQQQ %s from today."
+            " The crossings land exactly where they did in 2000: signal 1 sells %d sessions after the peak "
+            "(%s, index %s from the top) and signal 2 sells %d sessions after it (%s, TQQQ %s)."
             % (e1["session"], e1["date"], _pct(e1["ndx_drop_pct"], 1),
                e2["session"], e2["date"], _pct(e2["tqqq_drop_pct"], 1))
         )
+        if alt.get("sig1_day") and alt.get("sig2_day"):
+            timing += (
+                " For reference, if the crash days were instead applied against today's real averages, with "
+                "their much smaller gap, the sells would come on day %d and day %d."
+                % (alt["sig1_day"], alt["sig2_day"])
+            )
     secnote = (
-        '<p class="secnote">The Nasdaq-100 fell %.0f%% from March 2000 to the October 2002 bottom and was '
-        "still %.0f%% down at the end of 2003. That exact day by day path is replayed starting at the next "
-        "session, each percentage move applied to today's prices, while the averages keep updating over the "
-        "real history behind them. The first two charts continue the last year of real prices into the replay "
-        "so you can see exactly when each average crosses and the sell happens.%s</p>"
-        % (abs(dc["ndx_at_bottom_pct"]), abs(dc["ndx_at_end_pct"]), timing)
+        '<p class="secnote">Today stands at the exact 2000-03-27 peak. The year left of the divider is the '
+        "real 1999 to 2000 melt-up with every price scaled so the peak equals today's close, which puts each "
+        "average exactly where it sat at the top: the peak closed %s above its 200 day line, far more than "
+        "today's real %s, so the crash runs for weeks before anything crosses. From there the index fell "
+        "%.0f%% to the October 2002 bottom and was still %.0f%% down at the end of 2003.%s</p>"
+        % (_pct(dc["peak_gap_pct"], 1), _pct(dc["today_gap_pct"], 1),
+           abs(dc["ndx_at_bottom_pct"]), abs(dc["ndx_at_end_pct"]), timing)
     )
     out = head + secnote
     ch_n = dc.get("chart_ndx")
     if ch_n:
         prefixes.append("dcn")
-        t1 = "Signal 1 trigger: NDX vs 200 day average, last year plus the replay"
+        t1 = "Signal 1 trigger: NDX vs 200 day average, melt-up and crash at today's prices"
         if e1:
             t1 += " (sells day %d)" % e1["session"]
         out += _chart_block("dcn", t1, ch_n["lines"], ch_n["built"])
     ch_t = dc.get("chart_tq")
     if ch_t:
         prefixes.append("dct")
-        t2 = "Signal 2 trigger: TQQQ vs 5 and 218 day averages, last year plus the replay"
+        t2 = "Signal 2 trigger: TQQQ vs 5 and 218 day averages, melt-up and crash at today's prices"
         if e2:
             t2 += " (sells day %d)" % e2["session"]
         out += _chart_block("dct", t2, ch_t["lines"], ch_t["built"])
     note = (
         "TQQQ is simulated at 3 times each daily index move minus the financing drag of that era's interest "
-        "rates, the same reconstruction that matches the real fund since 2016. Index path %s to %s from FRED. "
-        "Axis dates are hypothetical future sessions. Each strategy begins the replay with its final wealth "
-        "from the backtest above, in its current state."
+        "rates, the same reconstruction that matches the real fund since 2016. Scaling every price by one "
+        "factor moves no crossing, so sell days and whipsaws match the real 2000 to 2003 tape. Index path "
+        "%s to %s from FRED; axis dates are hypothetical sessions standing in for that era. Each strategy "
+        "begins the replay with its final wealth from the backtest above."
         % (dc["replayed_from"], dc["replayed_to"])
     )
     ch = dc["chart"]

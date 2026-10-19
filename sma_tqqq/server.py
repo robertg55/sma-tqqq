@@ -54,11 +54,11 @@ def gather(force=False):
             bt_err = str(e)
         try:
             fred_ndx, _ = nasdaq.cached(
-                "fred_dotcom_ndx", FRED_TTL,
-                lambda: fred.fetch_series("NASDAQ100", "2000-03-01", "2003-12-31"))
+                "fred_ndx_1998_2003", FRED_TTL,
+                lambda: fred.fetch_series("NASDAQ100", "1998-01-01", "2003-12-31"))
             fred_ff, _ = nasdaq.cached(
-                "fred_dotcom_fedfunds", FRED_TTL,
-                lambda: fred.fetch_series("FEDFUNDS", "2000-01-01", "2004-01-31"))
+                "fred_fedfunds_1998_2004", FRED_TTL,
+                lambda: fred.fetch_series("FEDFUNDS", "1998-01-01", "2004-01-31"))
         except Exception as e:
             dc_err = str(e)
 
@@ -156,7 +156,7 @@ class Handler(BaseHTTPRequestHandler):
                 dc = s.get("dotcom") or {}
                 if dc.get("available") and dc.get("price_series"):
                     ps = dc["price_series"]
-                    mark = (ps["boundary"], "today")
+                    mark = (ps["boundary"], "today = the 2000 peak")
                     nlines = [
                         ("NDX close", "--s1", ps["ndx"]["close"]),
                         ("SMA200", "--s2", ps["ndx"]["sma200"]),

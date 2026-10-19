@@ -7,7 +7,6 @@ from . import stats
 START_CASH = 10000.0
 WARMUP = max(stats.SMA_LEN, 218)
 DOTCOM_PEAK = "2000-03-27"
-DOTCOM_END = "2003-12-31"
 TQQQ_SPREAD = 0.0060
 CHART_POINTS = 520
 DC_REAL = 250
@@ -101,42 +100,53 @@ def decade(ndx_rows, tqqq_rows):
 
 
 def dotcom(ndx_rows, tqqq_rows, fred_ndx, fred_ff, wealth):
-    """Replays the 2000 to 2003 index path from tomorrow, starting from today's wealth."""
+    """Replays 2000 to 2003 with today standing at the exact 2000 peak.
+
+    The whole era series is scaled so the peak equals today's prices, melt-up
+    included, so every average sits where it sat at the top and crossings land
+    on the same sessions as in the real tape.
+    """
     dates, ndx, tq = _align(ndx_rows, tqqq_rows)
-    path = [(d, v) for d, v in fred_ndx if DOTCOM_PEAK <= d <= DOTCOM_END]
-    if len(path) < 300:
-        raise ValueError("dot-com path too short: %d sessions" % len(path))
+    hist = list(fred_ndx)
+    if len(hist) < 900:
+        raise ValueError("dot-com history too short: %d sessions" % len(hist))
+    pk = next((i for i, (d, _) in enumerate(hist) if d == DOTCOM_PEAK), None)
+    if pk is None:
+        pk = max(range(len(hist)), key=lambda i: hist[i][1])
+    if pk < WARMUP + DC_REAL or len(hist) - pk < 300:
+        raise ValueError("unexpected shape of the dot-com series")
     rates = {d[:7]: v / 100.0 for d, v in fred_ff}
     last_rate = 0.05
-    ndx_ext = list(ndx)
-    tq_ext = list(tq)
-    for k in range(1, len(path)):
-        r = path[k][1] / path[k - 1][1] - 1
-        rate = rates.get(path[k][0][:7])
+    t_hist = [1.0]
+    for k in range(1, len(hist)):
+        r = hist[k][1] / hist[k - 1][1] - 1
+        rate = rates.get(hist[k][0][:7])
         if rate is None:
             rate = last_rate
         last_rate = rate
-        ndx_ext.append(ndx_ext[-1] * (1 + r))
-        tq_ext.append(tq_ext[-1] * (1 + 3 * r - (2 * rate + TQQQ_SPREAD) / 252))
-    sma200 = stats.rolling_sma(ndx_ext, stats.SMA_LEN)
-    s5 = stats.rolling_sma(tq_ext, 5)
-    s218 = stats.rolling_sma(tq_ext, 218)
-    i0 = len(dates) - 1
-    span = range(i0, len(ndx_ext))
+        t_hist.append(t_hist[-1] * (1 + 3 * r - (2 * rate + TQQQ_SPREAD) / 252))
+    ndx_s = [v * (ndx[-1] / hist[pk][1]) for _, v in hist]
+    tq_s = [v * (tq[-1] / t_hist[pk]) for v in t_hist]
+    sma200 = stats.rolling_sma(ndx_s, stats.SMA_LEN)
+    s5 = stats.rolling_sma(tq_s, 5)
+    s218 = stats.rolling_sma(tq_s, 218)
+
+    span = range(pk, len(hist))
+    today = date.fromisoformat(dates[-1])
     fdates = [dates[-1]]
-    cur = date.fromisoformat(dates[-1])
-    while len(fdates) < len(path):
+    cur = today
+    while len(fdates) < len(span):
         cur += timedelta(days=1)
         if cur.weekday() < 5:
             fdates.append(cur.isoformat())
     hold = [True] * len(fdates)
-    sig1 = [ndx_ext[i] > sma200[i] for i in span]
+    sig1 = [ndx_s[i] > sma200[i] for i in span]
     sig2 = [s5[i] > s218[i] for i in span]
-    t = [tq_ext[i] for i in span]
+    t = [tq_s[i] for i in span]
     eq_h = _equity(t, hold, wealth["hold"])
     eq_1 = _equity(t, sig1, wealth["sig1"])
     eq_2 = _equity(t, sig2, wealth["sig2"])
-    npath = [ndx_ext[i] for i in span]
+    npath = [ndx_s[i] for i in span]
     bot = npath.index(min(npath))
     m3 = min(63, len(fdates) - 1)
 
@@ -157,24 +167,44 @@ def dotcom(ndx_rows, tqqq_rows, fred_ndx, fred_ff, wealth):
         sig2_exit = {"session": k2, "date": fdates[k2],
                      "tqqq_drop_pct": (t[k2] / t[0] - 1) * 100}
 
-    full_dates = dates + fdates[1:]
-    w0 = len(dates) - DC_REAL
-    w1 = min(len(ndx_ext), len(dates) + DC_FWD)
-    win = range(w0, w1)
+    g_ndx = list(ndx)
+    g_tq = list(tq)
+    for k in range(pk + 1, min(len(hist), pk + 301)):
+        g_ndx.append(g_ndx[-1] * hist[k][1] / hist[k - 1][1])
+        g_tq.append(g_tq[-1] * t_hist[k] / t_hist[k - 1])
+    g_sma200 = stats.rolling_sma(g_ndx, stats.SMA_LEN)
+    g_s5 = stats.rolling_sma(g_tq, 5)
+    g_s218 = stats.rolling_sma(g_tq, 218)
+    i0 = len(dates) - 1
+    gmax = len(g_ndx) - i0
+    g1 = next((k for k in range(1, gmax) if g_ndx[i0 + k] <= g_sma200[i0 + k]), None)
+    g2 = next((k for k in range(1, gmax) if g_s5[i0 + k] <= g_s218[i0 + k]), None)
+
+    back = []
+    cur = today
+    while len(back) < DC_REAL - 1:
+        cur -= timedelta(days=1)
+        if cur.weekday() < 5:
+            back.append(cur.isoformat())
+    back.reverse()
+    axis_dates = back + fdates[:DC_FWD + 1]
+    win = range(pk - (DC_REAL - 1), pk + DC_FWD + 1)
     price_series = {
         "boundary": DC_REAL - 1,
         "ndx": {
-            "dates": [full_dates[i] for i in win],
-            "close": [round(ndx_ext[i], 2) for i in win],
+            "dates": axis_dates,
+            "close": [round(ndx_s[i], 2) for i in win],
             "sma200": [round(sma200[i], 2) for i in win],
         },
         "tqqq": {
-            "dates": [full_dates[i] for i in win],
-            "close": [round(tq_ext[i], 2) for i in win],
+            "dates": axis_dates,
+            "close": [round(tq_s[i], 2) for i in win],
             "sma5": [round(s5[i], 2) for i in win],
             "sma218": [round(s218[i], 2) for i in win],
         },
     }
+
+    real_sma = sum(ndx[-stats.SMA_LEN:]) / stats.SMA_LEN
 
     def snap(eq, pos):
         return {
@@ -191,12 +221,15 @@ def dotcom(ndx_rows, tqqq_rows, fred_ndx, fred_ff, wealth):
         "available": True,
         "sessions": len(fdates) - 1,
         "replayed_from": DOTCOM_PEAK,
-        "replayed_to": DOTCOM_END,
+        "replayed_to": hist[-1][0],
         "bottom_session": bot,
         "ndx_at_bottom_pct": (min(npath) / npath[0] - 1) * 100,
         "ndx_at_end_pct": (npath[-1] / npath[0] - 1) * 100,
+        "peak_gap_pct": (ndx_s[pk] / sma200[pk] - 1) * 100,
+        "today_gap_pct": (ndx[-1] / real_sma - 1) * 100,
         "sig1_exit": sig1_exit,
         "sig2_exit": sig2_exit,
+        "today_gap_exits": {"sig1_day": g1, "sig2_day": g2},
         "hold": snap(eq_h, hold),
         "sig1": snap(eq_1, sig1),
         "sig2": snap(eq_2, sig2),

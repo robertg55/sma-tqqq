@@ -90,17 +90,16 @@ $dotcom_html
 <details>
   <summary>Data table, last 15 sessions</summary>
   <table>
-    <tr><th>Date</th><th>NDX close</th><th>SMA200</th><th>Gap</th><th>TQQQ</th><th>SMA5</th><th>SMA218</th></tr>
+    <tr><th>Date</th><th>TQQQ close</th><th>SMA5</th><th>SMA218</th><th>Gap</th></tr>
     $table_rows
   </table>
 </details>
 <footer>
-  Signal 1 (SMA200): hold TQQQ while the Nasdaq-100 official close is above the average of its last 200 closes, otherwise cash.
-  Signal 2 (5/218): hold TQQQ while its own 5 day average is above its 218 day average, otherwise cash.
+  The signal (TQQQ 5/218): hold TQQQ while its own 5 day average close is above its 218 day average, otherwise cash.
   Decisions use official closes only; the live quote is informational.
   The backtest and the crash replay are simulations under the assumptions stated next to them.
   Data comes from Nasdaq's public API (and FRED for the 2000 era) and is cached locally in data/ (never committed).
-  Page auto refreshes every 5 minutes. Mechanical indicators, not financial advice.
+  Page auto refreshes every 5 minutes. A mechanical indicator, not financial advice.
 </footer>
 </div>
 <script type="application/json" id="chart-prefixes">$prefixes_json</script>
@@ -160,33 +159,30 @@ if (ex){
 
 EXPLAIN = (
     '<details class="explain" id="explain">'
-    "<summary>How it works: TQQQ and the two signals, in plain words</summary>"
+    "<summary>How it works: TQQQ and the signal, in plain words</summary>"
     "<p><b>What TQQQ is.</b> TQQQ is a fund that moves 3 times as much as the Nasdaq-100 index, every day, "
     "in both directions. When the index gains 1% in a day, TQQQ gains about 3%; when the index drops 2%, TQQQ drops "
     "about 6%. Over a long rising market that compounding is spectacular, but in a crash it is lethal: TQQQ lost "
     "about 80% in 2022, and in a repeat of the 2000 crash it loses over 99%. The whole game is to own it while the "
     "market is healthy and to not own it during disasters.</p>"
-    "<p><b>Signal 1: the index 200 day line.</b> Average the Nasdaq-100's last 200 official closing prices. "
-    "That average is a slow line that tracks the long term trend. The rule: be in TQQQ while the index closes above "
-    "its line, and sit in cash while it closes below; the day it crosses, you trade. Why it works: average returns "
-    "are about the same on both sides of the line, but the violence is not. Volatility below the line runs roughly "
-    "twice as high, and nearly all of the catastrophic days happen down there. A daily 3x fund is destroyed by "
-    "exactly that chaos, so skipping it matters more than catching every rebound day.</p>"
-    "<p><b>Signal 2: the TQQQ 5/218 crossover.</b> The same idea, measured on TQQQ itself. Average its last 5 "
-    "closes (a fast line) and its last 218 closes (a slow line); be in TQQQ while the fast line is above the slow "
-    "one, otherwise cash. Using a 5 day average instead of a single close filters out one day head fakes, so this "
-    "signal trades less often, at the price of reacting a few days later at real turning points.</p>"
-    "<p><b>How to use the page.</b> Check the two banners once a day after the market close. Green means that "
-    "strategy says be invested; red means it says be in cash. There is no prediction involved, each rule only "
-    "reacts to its own moving averages. The receipts are below: a backtest over the last ten years of real prices, "
-    "and a replay of the 2000 dot-com crash starting tomorrow. Mechanical rules, not financial advice.</p>"
+    "<p><b>The signal: the TQQQ 5/218 crossover.</b> Average TQQQ's last 5 closing prices (a fast line) and its "
+    "last 218 closes (a slow line that tracks the long term trend). The rule: be in TQQQ while the fast line is "
+    "above the slow one, and sit in cash while it is below; the day they cross, you trade. Why it works: average "
+    "returns are about the same on both sides of a long moving average, but the violence is not. Volatility below "
+    "the line runs roughly twice as high, and nearly all of the catastrophic days happen down there. A daily 3x "
+    "fund is destroyed by exactly that chaos, so skipping it matters more than catching every rebound day. Using "
+    "a 5 day average instead of a single close filters out one day head fakes, so the signal trades rarely, at "
+    "the price of reacting a few days later at real turning points.</p>"
+    "<p><b>How to use the page.</b> Check the banner once a day after the market close. Green means be invested; "
+    "red means be in cash. There is no prediction involved, the rule only reacts to its own moving averages. The "
+    "receipts are below: a backtest over the last ten years of real prices, and a replay of the 2000 dot-com "
+    "crash starting tomorrow. A mechanical rule, not financial advice.</p>"
     "</details>"
 )
 
 STRATS = (
     ("Buy and hold TQQQ", "--s1", "hold"),
-    ("Signal 1: index SMA200", "--s2", "sig1"),
-    ("Signal 2: TQQQ 5/218", "--s3", "sig2"),
+    ("The 5/218 signal", "--s3", "sig2"),
 )
 
 
@@ -252,7 +248,7 @@ def _bt_table(bt):
 
 
 def _dc_table(dc):
-    exits = {"hold": None, "sig1": dc.get("sig1_exit"), "sig2": dc.get("sig2_exit")}
+    exits = {"hold": None, "sig2": dc.get("sig2_exit")}
     rows = [
         "<tr><th>Strategy</th><th>Start (today)</th><th>First sell</th><th>3 months in</th>"
         "<th>At the index bottom</th><th>End of replay</th><th>Worst drop</th><th>Trades</th></tr>"
@@ -279,13 +275,13 @@ def _backtest_section(bt, prefixes):
         return head + '<div class="stale">The backtest could not run: %s</div>' % html.escape(str(bt.get("error", "unknown")))
     note = (
         "One decision per session at the official close, trades fill at that same close. "
-        "Cash earns nothing. Taxes, fees and dividends are ignored. Both signals need a long "
+        "Cash earns nothing. Taxes, fees and dividends are ignored. The signal needs a long "
         "average, so the race starts on the first session where a full 218 day history exists "
         "inside the fetched decade of data."
     )
     secnote = (
-        '<p class="secnote">All three lines invest %s on %s and follow their rule through %s. '
-        "This is how the two banners above would actually have traded, next to simply buying "
+        '<p class="secnote">Both lines invest %s on %s and follow their rule through %s. '
+        "This is how the banner above would actually have traded, next to simply buying "
         "and holding TQQQ the whole time.</p>"
         % (_money(bt["start_cash"]), bt["start"], bt["end"])
     )
@@ -302,53 +298,45 @@ def _dotcom_section(dc, prefixes):
         return ""
     if not (dc.get("available") and dc.get("chart")):
         return head + '<div class="stale">The crash replay could not run: %s</div>' % html.escape(str(dc.get("error", "unknown")))
-    e1 = dc.get("sig1_exit")
     e2 = dc.get("sig2_exit")
     alt = dc.get("today_gap_exits") or {}
     timing = ""
-    if e1 and e2:
+    if e2:
         timing = (
-            " The crossings land exactly where they did in 2000: signal 1 sells %d sessions after the peak "
-            "(%s, index %s from the top) and signal 2 sells %d sessions after it (%s, TQQQ %s)."
-            % (e1["session"], e1["date"], _pct(e1["ndx_drop_pct"], 1),
-               e2["session"], e2["date"], _pct(e2["tqqq_drop_pct"], 1))
+            " The crossing lands exactly where it did in 2000: the signal sells %d sessions after the peak "
+            "(%s, TQQQ %s from the top)."
+            % (e2["session"], e2["date"], _pct(e2["tqqq_drop_pct"], 1))
         )
-        if alt.get("sig1_day") and alt.get("sig2_day"):
+        if alt.get("sig2_day"):
             timing += (
                 " For reference, if the crash days were instead applied against today's real averages, with "
-                "their much smaller gap, the sells would come on day %d and day %d."
-                % (alt["sig1_day"], alt["sig2_day"])
+                "their much smaller gap, the sell would come on day %d."
+                % alt["sig2_day"]
             )
     secnote = (
         '<p class="secnote">Today stands at the exact 2000-03-27 peak. The year left of the divider is the '
-        "real 1999 to 2000 melt-up with every price scaled so the peak equals today's close, which puts each "
-        "average exactly where it sat at the top: the peak closed %s above its 200 day line, far more than "
-        "today's real %s, so the crash runs for weeks before anything crosses. From there the index fell "
-        "%.0f%% to the October 2002 bottom and was still %.0f%% down at the end of 2003.%s</p>"
+        "real 1999 to 2000 melt-up with every price scaled so the peak equals today's close, which puts both "
+        "averages exactly where they sat at the top: the peak closed with the 5 day average %s above the "
+        "218 day line, far more than today's real %s, so the crash runs for a while before they cross. From "
+        "there the index fell %.0f%% to the October 2002 bottom and was still %.0f%% down at the end of "
+        "2003.%s</p>"
         % (_pct(dc["peak_gap_pct"], 1), _pct(dc["today_gap_pct"], 1),
            abs(dc["ndx_at_bottom_pct"]), abs(dc["ndx_at_end_pct"]), timing)
     )
     out = head + secnote
-    ch_n = dc.get("chart_ndx")
-    if ch_n:
-        prefixes.append("dcn")
-        t1 = "Signal 1 trigger: NDX vs 200 day average, melt-up and crash at today's prices"
-        if e1:
-            t1 += " (sells day %d)" % e1["session"]
-        out += _chart_block("dcn", t1, ch_n["lines"], ch_n["built"])
     ch_t = dc.get("chart_tq")
     if ch_t:
         prefixes.append("dct")
-        t2 = "Signal 2 trigger: TQQQ vs 5 and 218 day averages, melt-up and crash at today's prices"
+        t2 = "Sell trigger: TQQQ vs 5 and 218 day averages, melt-up and crash at today's prices"
         if e2:
             t2 += " (sells day %d)" % e2["session"]
         out += _chart_block("dct", t2, ch_t["lines"], ch_t["built"])
     note = (
         "TQQQ is simulated at 3 times each daily index move minus the financing drag of that era's interest "
         "rates, the same reconstruction that matches the real fund since 2016. Scaling every price by one "
-        "factor moves no crossing, so sell days and whipsaws match the real 2000 to 2003 tape. Index path "
-        "%s to %s from FRED; axis dates are hypothetical sessions standing in for that era. Each strategy "
-        "begins the replay with its final wealth from the backtest above."
+        "factor moves no crossing, so the sell day and the whipsaws match the real 2000 to 2003 tape. Index "
+        "path %s to %s from FRED; axis dates are hypothetical sessions standing in for that era. Both "
+        "strategies begin the replay with their final wealth from the backtest above."
         % (dc["replayed_from"], dc["replayed_to"])
     )
     ch = dc["chart"]
@@ -358,67 +346,52 @@ def _dotcom_section(dc, prefixes):
 
 
 def render(s, meta):
-    ndx = s["ndx"]
     tq = s["tqqq"]
     t2 = s["tqqq_5218"]
     live = s["live"]
-    in1 = s["signal"] == "TQQQ"
-    in2 = t2["signal"] == "TQQQ"
+    inm = t2["signal"] == "TQQQ"
 
-    banners = []
-    banners.append(_banner(
-        in1,
-        "signal 1: index SMA200",
-        "IN MARKET: hold or buy TQQQ" if in1 else "OUT: sell TQQQ, stay in cash",
-        "NDX closed %s on %s, %s the 200 day line at %s (%s). In this state %d sessions, since %s." % (
-            _n(ndx["close"]), ndx["date"],
-            "above" if in1 else "below",
-            _n(ndx["sma200"]), _pct(ndx["gap_pct"]),
-            ndx["days_in_state"], ndx["state_since"]),
-    ))
-    banners.append(_banner(
-        in2,
-        "signal 2: TQQQ 5/218",
-        "IN MARKET: hold or buy TQQQ" if in2 else "OUT: sell TQQQ, stay in cash",
+    banners = [_banner(
+        inm,
+        "TQQQ 5/218",
+        "IN MARKET: hold or buy TQQQ" if inm else "OUT: sell TQQQ, stay in cash",
         "TQQQ 5 day average %s is %s the 218 day average %s (%s). In this state %d sessions, since %s." % (
-            _n(t2["sma5"]), "above" if in2 else "below",
+            _n(t2["sma5"]), "above" if inm else "below",
             _n(t2["sma218"]), _pct(t2["gap_pct"]),
             t2["days_in_state"], t2["state_since"]),
-    ))
+    )]
 
     cards = []
-    cards.append(_card(
-        "Official NDX close (%s)" % ndx["date"],
-        _n(ndx["close"]),
-        "day change %s" % _pct(ndx["day_change_pct"]),
-    ))
-    cards.append(_card(
-        "200 day average",
-        _n(ndx["sma200"]),
-        "gap to line %s" % _pct(ndx["gap_pct"]),
-    ))
-    cards.append(_card(
-        "Signal 1 flips tomorrow on a close %s" % ("below" if in1 else "above"),
-        _n(ndx["flip_level"]),
-        "2%% band exit level: %s" % _n(ndx["band_level"]),
-    ))
-    if live:
-        cards.append(_card(
-            "Live NDX (%s)" % html.escape(live["market"] or "quote"),
-            _n(live["price"]),
-            "provisional signal if the session closed now: %s (%s vs line)" % (
-                live["provisional_signal"], _pct(live["gap_pct"])),
-        ))
     tq_quote = tq.get("quote") or {}
     tq_sub = "day change %s" % _pct(tq["day_change_pct"])
     if tq_quote.get("when"):
         tq_sub += " &middot; last trade %s" % html.escape(str(tq_quote["when"]))
     cards.append(_card("TQQQ last close (%s)" % tq["date"], _n(tq["last"]), tq_sub))
+    if live:
+        cards.append(_card(
+            "Live TQQQ (%s)" % html.escape(live["market"] or "quote"),
+            _n(live["price"]),
+            "provisional signal if the session closed now: %s (gap %s)" % (
+                live["provisional_signal"], _pct(live["gap_pct"])),
+        ))
     cards.append(_card(
-        "TQQQ 5 and 218 day averages",
+        "5 and 218 day averages",
         "%s / %s" % (_n(t2["sma5"]), _n(t2["sma218"])),
-        "signal 2 gap %s, %d crossings in the past year" % (_pct(t2["gap_pct"]), t2["crossings_1y"]),
+        "gap %s, %d crossings in the past year" % (_pct(t2["gap_pct"]), t2["crossings_1y"]),
     ))
+    if t2["flip_level"] > 0:
+        cards.append(_card(
+            "Signal flips tomorrow on a close %s" % ("below" if inm else "above"),
+            _n(t2["flip_level"]),
+            "%s from the last close; the slow pair makes one day flips rare" % _pct(
+                (t2["flip_level"] / tq["last"] - 1) * 100, 0),
+        ))
+    else:
+        cards.append(_card(
+            "Signal cannot flip tomorrow",
+            "no close does it",
+            "the averages are too far apart for any single session to cross them",
+        ))
     cards.append(_card(
         "TQQQ 1 year peak",
         _n(tq["peak_1y"]),
@@ -428,16 +401,6 @@ def render(s, meta):
         "40% crash brake (secondary)",
         _n(tq["brake_level"]),
         "TQQQ is %s this level; from the deep drawdown backtests" % ("above" if tq["above_brake"] else "BELOW"),
-    ))
-    cards.append(_card(
-        "SMA200 crossings, past year",
-        str(ndx["crossings_1y"]),
-        "each crossing is one trade for signal 1",
-    ))
-    cards.append(_card(
-        "NDX volatility, 20 day",
-        "%.0f%% annualized" % ndx["vol20_pct"],
-        "decade averages: 22% above the line, 41% below it",
     ))
 
     charts_html = []
@@ -449,16 +412,11 @@ def render(s, meta):
     backtest_html = _backtest_section(s.get("backtest") or {}, prefixes)
     dotcom_html = _dotcom_section(s.get("dotcom") or {}, prefixes)
 
-    t2map = {d: (c, a, b) for d, c, a, b in s["chart2_series"]}
     table_rows = []
-    for d, c, m in s["chart_series"][-15:][::-1]:
-        tq_cells = "<td></td><td></td><td></td>"
-        if d in t2map:
-            tc, ta, tb = t2map[d]
-            tq_cells = "<td>%s</td><td>%s</td><td>%s</td>" % (_n(tc), _n(ta), _n(tb))
+    for d, c, a, b in s["chart_series"][-15:][::-1]:
         table_rows.append(
-            "<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td>%s</tr>"
-            % (d, _n(c), _n(m), _pct((c / m - 1) * 100), tq_cells)
+            "<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>"
+            % (d, _n(c), _n(a), _n(b), _pct((a / b - 1) * 100))
         )
 
     stale_html = ""

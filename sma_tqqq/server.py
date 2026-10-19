@@ -23,20 +23,11 @@ def _iso(ts):
 
 def gather(force=False):
     bt_err = dc_err = None
-    ndx10 = tq10 = fred_ndx = fred_ff = None
+    tq10 = fred_ndx = fred_ff = None
     with _lock:
-        ndx_rows, m_nh = nasdaq.cached(
-            "ndx_history", config.history_ttl_seconds(),
-            lambda: nasdaq.fetch_history("NDX", "index"), force)
         tq_rows, m_th = nasdaq.cached(
             "tqqq_history", config.history_ttl_seconds(),
             lambda: nasdaq.fetch_history("TQQQ", "etf"), force)
-        try:
-            ndx_q, m_nq = nasdaq.cached(
-                "ndx_quote", config.quote_ttl_seconds(),
-                lambda: nasdaq.fetch_quote("NDX", "index"), force)
-        except Exception as e:
-            ndx_q, m_nq = None, {"fetched_at": 0, "stale": True, "error": str(e)}
         try:
             tq_q, m_tq = nasdaq.cached(
                 "tqqq_quote", config.quote_ttl_seconds(),
@@ -44,9 +35,6 @@ def gather(force=False):
         except Exception as e:
             tq_q, m_tq = None, {"fetched_at": 0, "stale": True, "error": str(e)}
         try:
-            ndx10, _ = nasdaq.cached(
-                "ndx_history_10y", DECADE_TTL,
-                lambda: nasdaq.fetch_history("NDX", "index", days_back=3645), force)
             tq10, _ = nasdaq.cached(
                 "tqqq_history_10y", DECADE_TTL,
                 lambda: nasdaq.fetch_history("TQQQ", "etf", days_back=3645), force)
@@ -62,11 +50,11 @@ def gather(force=False):
         except Exception as e:
             dc_err = str(e)
 
-    s = stats.compute(ndx_rows, tq_rows, ndx_q, tq_q)
+    s = stats.compute(tq_rows, tq_q)
 
-    if ndx10 and tq10:
+    if tq10:
         try:
-            s["backtest"] = backtest.decade(ndx10, tq10)
+            s["backtest"] = backtest.decade(tq10)
         except Exception as e:
             s["backtest"] = {"available": False, "error": str(e)}
     else:
@@ -75,21 +63,21 @@ def gather(force=False):
     bt = s["backtest"]
     if bt.get("available") and fred_ndx and fred_ff:
         try:
-            wealth = {k: bt[k]["final"] for k in ("hold", "sig1", "sig2")}
-            s["dotcom"] = backtest.dotcom(ndx10, tq10, fred_ndx, fred_ff, wealth)
+            wealth = {k: bt[k]["final"] for k in ("hold", "sig2")}
+            s["dotcom"] = backtest.dotcom(tq10, fred_ndx, fred_ff, wealth)
         except Exception as e:
             s["dotcom"] = {"available": False, "error": str(e)}
     else:
         s["dotcom"] = {"available": False, "error": dc_err or "needs the ten year backtest and the FRED series"}
 
-    metas = [m_nh, m_th, m_nq, m_tq]
+    metas = [m_th, m_tq]
     stale = any(m.get("stale") for m in metas)
     errors = [m.get("error") for m in metas if m.get("error")]
     meta = {
         "stale": stale,
         "error": "; ".join(errors) if errors else None,
         "oldest_fetch": _iso(min(m.get("fetched_at", 0) for m in metas)),
-        "history_fetched": _iso(m_nh.get("fetched_at", 0)),
+        "history_fetched": _iso(m_th.get("fetched_at", 0)),
     }
     return s, meta
 
@@ -114,57 +102,41 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(200, "ok", "text/plain; charset=utf-8")
             elif url.path == "/api/status":
                 s, meta = gather(force)
-                out = {k: v for k, v in s.items() if k not in ("chart_series", "chart2_series", "charts")}
+                out = {k: v for k, v in s.items() if k not in ("chart_series", "charts")}
                 for k in ("backtest", "dotcom"):
                     if isinstance(out.get(k), dict):
                         out[k] = {kk: vv for kk, vv in out[k].items()
-                                  if kk not in ("series", "chart", "price_series", "chart_ndx", "chart_tq")}
+                                  if kk not in ("series", "chart", "price_series", "chart_tq")}
                 out["meta"] = meta
                 self._send(200, json.dumps(out, indent=2), "application/json")
             elif url.path == "/":
                 s, meta = gather(force)
-                dates1 = [d for d, _, _ in s["chart_series"]]
-                lines1 = [
-                    ("NDX close", "--s1", [c for _, c, _ in s["chart_series"]]),
-                    ("SMA200", "--s2", [m for _, _, m in s["chart_series"]]),
-                ]
-                dates2 = [d for d, _, _, _ in s["chart2_series"]]
-                lines2 = [
-                    ("TQQQ", "--s1", [c for _, c, _, _ in s["chart2_series"]]),
-                    ("SMA5", "--s2", [a for _, _, a, _ in s["chart2_series"]]),
-                    ("SMA218", "--s3", [b for _, _, _, b in s["chart2_series"]]),
+                dates = [d for d, _, _, _ in s["chart_series"]]
+                lines = [
+                    ("TQQQ", "--s1", [c for _, c, _, _ in s["chart_series"]]),
+                    ("SMA5", "--s2", [a for _, _, a, _ in s["chart_series"]]),
+                    ("SMA218", "--s3", [b for _, _, _, b in s["chart_series"]]),
                 ]
                 s["charts"] = [
-                    ("ndx", "Signal 1: Nasdaq-100 close vs 200 day average, last %d sessions" % len(dates1),
-                     lines1, chart.build("ndx", dates1, lines1)),
-                    ("tq", "Signal 2: TQQQ close vs 5 and 218 day averages, last %d sessions" % len(dates2),
-                     lines2, chart.build("tq", dates2, lines2)),
+                    ("tq", "The signal: TQQQ close vs its 5 and 218 day averages, last %d sessions" % len(dates),
+                     lines, chart.build("tq", dates, lines)),
                 ]
                 for key, prefix in (("backtest", "bt"), ("dotcom", "dc")):
                     sec = s.get(key) or {}
                     if sec.get("available"):
                         ser = sec["series"]
-                        lines = [
+                        eq_lines = [
                             ("Hold TQQQ", "--s1", ser["hold"]),
-                            ("Signal 1 SMA200", "--s2", ser["sig1"]),
-                            ("Signal 2 5/218", "--s3", ser["sig2"]),
+                            ("5/218 signal", "--s3", ser["sig2"]),
                         ]
                         sec["chart"] = {
-                            "lines": lines,
-                            "built": chart.build(prefix, ser["dates"], lines, log=True),
+                            "lines": eq_lines,
+                            "built": chart.build(prefix, ser["dates"], eq_lines, log=True),
                         }
                 dc = s.get("dotcom") or {}
                 if dc.get("available") and dc.get("price_series"):
                     ps = dc["price_series"]
                     mark = (ps["boundary"], "today = the 2000 peak")
-                    nlines = [
-                        ("NDX close", "--s1", ps["ndx"]["close"]),
-                        ("SMA200", "--s2", ps["ndx"]["sma200"]),
-                    ]
-                    dc["chart_ndx"] = {
-                        "lines": nlines,
-                        "built": chart.build("dcn", ps["ndx"]["dates"], nlines, mark=mark),
-                    }
                     tlines = [
                         ("TQQQ", "--s1", ps["tqqq"]["close"]),
                         ("SMA5", "--s2", ps["tqqq"]["sma5"]),

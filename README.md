@@ -1,16 +1,12 @@
 # sma-tqqq
 
-A tiny local web dashboard for a 200 day moving average long/flat signal on TQQQ. It runs on your own machine, fetches fresh data from Nasdaq's public API whenever you open the page, and tells you plainly: in market (hold or buy TQQQ) or out (sell, sit in cash). No accounts, no API keys, no database, no third party services beyond the public quote API, and zero Python dependencies.
+A tiny local web dashboard for a moving average long/flat signal on TQQQ. It runs on your own machine, fetches fresh data from Nasdaq's public API whenever you open the page, and tells you plainly: in market (hold or buy TQQQ) or out (sell, sit in cash). No accounts, no API keys, no database, no third party services beyond the public quote API, and zero Python dependencies.
 
-## The rules it implements
+## The rule it implements
 
-Two independent long/flat signals are shown side by side, each with its own verdict banner and chart.
+One long/flat signal (TQQQ 5/218): hold TQQQ while its own 5 day average close is above its 218 day average. When the fast line crosses below, sell everything to cash; when it crosses back above, buy back in. The smoothed short side filters one day head fakes, and computing both lines on the leveraged fund itself makes exits more aggressive in bad regimes. Earlier versions also tracked the classic index SMA200 signal; the 5/218 beat it in both the decade backtest and the crash replay, so the dashboard now follows only the 5/218.
 
-Signal 1 (index SMA200): hold TQQQ while the Nasdaq-100 official daily close is above the average of its last 200 official closes. When it closes below, sell everything to cash. When it closes back above, buy back in.
-
-Signal 2 (TQQQ 5/218): hold TQQQ while its own 5 day average close is above its 218 day average, otherwise cash. The smoothed short side trades less often, and computing both lines on the leveraged fund itself makes exits more aggressive in bad regimes.
-
-Decisions use official closes only; the live quote on the page is informational. The page also shows a secondary "crash brake" level (40 percent below TQQQ's 1 year peak) that deep drawdown backtests favored, the exact index level that would flip signal 1 at the next close, crossing counts, and current volatility versus the regimes that make trend filters work.
+Decisions use official closes only; the live quote on the page is informational. The page also shows a secondary "crash brake" level (40 percent below TQQQ's 1 year peak) that deep drawdown backtests favored, the exact TQQQ close that would flip the signal at the next session, and crossing counts.
 
 This is a mechanical indicator, not financial advice.
 
@@ -18,10 +14,10 @@ This is a mechanical indicator, not financial advice.
 
 The page carries its own receipts, recomputed from freshly fetched data:
 
-- Ten year backtest: both signals and plain buy and hold start with $10,000 on the first session that has a full 218 day warmup, then trade their rules at official closes through today. Shown as a log scale wealth chart plus final wealth, yearly growth, worst drop, time invested and trade counts.
-- Dot-com stress test: the Nasdaq-100's real daily path around its March 2000 peak through the end of 2003 (83% down at the bottom) is replayed with today standing at the exact peak. The whole era series, melt-up year included, is scaled so the peak equals today's prices, which puts every average where it sat at the top; since scaling moves no crossing, each signal's sell day lands on the same session as in the real tape. TQQQ is simulated at 3 times the daily index move minus the financing costs of that era. Two trigger charts show the melt-up and crash around a today-equals-the-peak divider with the exact sell day of each signal, and the text notes how much sooner the sells would come against today's real, much smaller gaps. Each strategy enters the crash with its wealth from the ten year backtest.
+- Ten year backtest: the signal and plain buy and hold start with $10,000 on the first session that has a full 218 day warmup, then trade their rules at official closes through today. Shown as a log scale wealth chart plus final wealth, yearly growth, worst drop, time invested and trade counts.
+- Dot-com stress test: the Nasdaq-100's real daily path around its March 2000 peak through the end of 2003 (83% down at the bottom) is replayed with today standing at the exact peak. The whole era series, melt-up year included, is scaled so the peak equals today's prices, which puts both averages where they sat at the top; since scaling moves no crossing, the signal's sell day lands on the same session as in the real tape. TQQQ is simulated at 3 times the daily index move minus the financing costs of that era. A trigger chart shows the melt-up and crash around a today-equals-the-peak divider with the exact sell day, and the text notes how much sooner the sell would come against today's real, much smaller gap. Both strategies enter the crash with their wealth from the ten year backtest.
 
-The 2000 era index and fed funds series come from FRED and are cached in data/ like everything else. The top of the page also has a plain words explainer of TQQQ and both strategies for first time visitors.
+The 2000 era index and fed funds series come from FRED and are cached in data/ like everything else. The top of the page also has a plain words explainer of TQQQ and the strategy for first time visitors.
 
 ## Quick start
 
